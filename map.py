@@ -1,6 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
-startURL = "https://kuben.vgs.no"
+import json
+from urllib.parse import urlparse
+from urllib.parse import quote
+
+startURL = "https://www.oslo.kommune.no/"
+SavedFile = "./SavedData/save.json"
 
 ##############################################################################################################
 ##############################################################################################################
@@ -15,11 +20,16 @@ def get_links(url):
             # Parse the HTML content
             soup = BeautifulSoup(response.text, 'html.parser')
 
-            # Find all links in the HTML with 'http://' or 'https://' in the href attribute
-            all_links = [a['href'] for a in soup.find_all('a', href=True)]
-            http_links = [link for link in all_links if 'http://' in link or 'https://' in link]
+            # Find all unique links in the HTML with 'http://' or 'https://' in the href attribute
+            unique_links = set()
+            for a in soup.find_all('a', href=True):
+                link = a['href']
+                if 'http://' in link or 'https://' in link:
+                    # Encode special characters in the URL
+                    encoded_link = quote(link, safe=':/')
+                    unique_links.add(encoded_link)
 
-            return http_links
+            return list(unique_links)
         else:
             print(f"Error: Unable to fetch the URL. Status Code: {response.status_code}")
             return []
@@ -29,5 +39,34 @@ def get_links(url):
 ##############################################################################################################
 ##############################################################################################################
 ##############################################################################################################
+def save_links_to_json(base_url, links):
+    # Parse the base URL to get the top domain
+    top_domain = urlparse(base_url).netloc
 
-print(get_links(startURL))
+    # Load existing data if available
+    try:
+        with open(SavedFile, 'r') as json_file:
+            data = json.load(json_file)
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
+        # Create an empty dictionary if the file is not found or is empty
+        data = {}
+
+    # Check if the top domain is already in the data
+    if top_domain not in data:
+        data[top_domain] = {}
+
+    # Update links for the sub-page
+    data[top_domain][base_url] = links
+
+    # Save the updated data to the JSON file
+    with open(SavedFile, 'w') as json_file:
+        json.dump(data, json_file, indent=2)
+
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+
+links = get_links(startURL)
+print(links)
+print(str(len(links)) + " links")
+save_links_to_json(startURL, links)
